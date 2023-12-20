@@ -1,0 +1,77 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.18;
+
+contract DegenGaming {
+    address public owner;
+    string public gameName = "Degen Gaming";
+    string public gameSymbol = "Degen";
+    uint8 public gameDecimals = 10;
+    uint256 public totalSupply = 0;
+
+    mapping(uint256 => string) public productNames;
+    mapping(uint256 => uint256) public productPrices;
+    mapping(address => uint256) public playerBalances;
+    mapping(address => mapping(uint256 => bool)) public purchasedProducts;
+    mapping(address => uint256) public purchasedProductCount;
+
+    event Mint(address indexed to, uint256 value);
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Burn(address indexed from, uint256 value);
+    event Redeem(address indexed user, string itemName);
+
+    modifier onlyGameOwner() {
+        require(msg.sender == owner, "Only the owner can use this function.");
+        _;
+    }
+
+    constructor() {
+        owner = msg.sender;
+
+        addGameProduct(0, "Game Hoodie", 5);
+    }
+
+    function addGameProduct(uint256 itemId, string memory _itemName, uint256 _itemPrice) public onlyGameOwner {
+        productNames[itemId] = _itemName;
+        productPrices[itemId] = _itemPrice;
+    }
+
+    function createGameToken(address to, uint256 amount) external onlyGameOwner {
+        totalSupply += amount;
+        playerBalances[to] += amount;
+        emit Mint(to, amount);
+        emit Transfer(address(0), to, amount);
+    }
+
+    function gameTokenTransfer(address receiver, uint256 amount) external returns (bool) {
+        require(playerBalances[msg.sender] >= amount, "Insufficient balance for the transfer.");
+        playerBalances[msg.sender] -= amount;
+        playerBalances[receiver] += amount;
+        emit Transfer(msg.sender, receiver, amount);
+        return true;
+    }
+
+    function burnGameToken(uint256 amount) external {
+        require(amount <= playerBalances[msg.sender], "Insufficient balance for burning.");
+        playerBalances[msg.sender] -= amount;
+        totalSupply -= amount;
+        emit Burn(msg.sender, amount);
+        emit Transfer(msg.sender, address(0), amount);
+    }
+
+    function redeemGameItem(uint256 itemId) external returns (string memory) {
+        require(productPrices[itemId] > 0, "Invalid item ID for redemption.");
+        uint256 redemptionAmount = productPrices[itemId];
+        require(playerBalances[msg.sender] >= redemptionAmount, "Insufficient balance to redeem the item.");
+
+        playerBalances[msg.sender] -= redemptionAmount;
+        purchasedProducts[msg.sender][itemId] = true;
+        purchasedProductCount[msg.sender]++;
+        emit Redeem(msg.sender, productNames[itemId]);
+
+        return productNames[itemId];
+    }
+
+    function getRedeemedItemCount(address user) external view returns (uint256) {
+        return purchasedProductCount[user];
+    }
+}
